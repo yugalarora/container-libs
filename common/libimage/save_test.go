@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.podman.io/common/pkg/config"
+	"go.podman.io/image/v5/docker/reference"
 )
 
 func TestSave(t *testing.T) {
@@ -101,5 +102,30 @@ func TestSave(t *testing.T) {
 		}
 		_, err = runtime.ListImagesByNames(namesAndTags)
 		require.NoError(t, err, "%v", test)
+	}
+}
+
+func TestStripLocalhostPrefix(t *testing.T) {
+	for _, test := range []struct {
+		input    string
+		expected string // empty means the input is expected to be left alone
+	}{
+		{"localhost/foo:latest", "foo:latest"},
+		{"localhost/foo/bar:v1", "foo/bar:v1"},
+		{"localhost:5000/foo:latest", ""}, // a real registry that happens to run on localhost
+		{"quay.io/libpod/alpine:latest", ""},
+		{"docker.io/library/alpine:latest", ""},
+	} {
+		named, err := reference.ParseNamed(test.input)
+		require.NoError(t, err, "%v", test)
+
+		stripped, ok := stripLocalhostPrefix(named)
+		if test.expected == "" {
+			require.False(t, ok, "%v", test)
+			require.Nil(t, stripped, "%v", test)
+			continue
+		}
+		require.True(t, ok, "%v", test)
+		require.Equal(t, test.expected, stripped.String(), "%v", test)
 	}
 }
